@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Shiramine Vault</title>
-    <link rel="stylesheet" href="./styles.css?v=20260619-mobile-tabs" />
+    <link rel="stylesheet" href="./styles.css?v=20260619-seed-dedupe" />
   </head>
   <body>
     <div class="app-shell">
@@ -58,6 +58,7 @@
             <button id="testConnectionButton" class="tool-button">接続確認</button>
             <button id="signInButton" class="tool-button">ログイン</button>
             <button id="syncNowButton" class="tool-button">同期</button>
+            <button id="detectDuplicatesButton" class="tool-button">重複検出</button>
           </div>
           <p id="syncStatus" class="status-text">ローカル保存</p>
           <pre id="syncDiagnostics" class="diagnostics" aria-live="polite"></pre>
@@ -140,6 +141,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./vendor/encoding.min.js"></script>
-    <script src="./app.js?v=20260619-mobile-tabs"></script>
+    <script src="./app.js?v=20260619-seed-dedupe"></script>
   </body>
 </html>

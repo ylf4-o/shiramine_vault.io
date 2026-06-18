@@ -5,6 +5,7 @@ const STORE_NAME = "vault";
 const STATE_ID = "state";
 const SYNC_SETTINGS_KEY = "shiramine-vault:sync";
 const AUTO_SAVE_MS = 700;
+const SEED_CREATED_AT = "2026-06-18T00:00:00.000Z";
 
 const defaultFolders = [
   "00_Inbox",
@@ -105,7 +106,7 @@ ${today()}`,
 };
 
 const seedNotes = [
-  noteSeed("資料庫の使い方", "00_Inbox", `# 資料庫の使い方
+  noteSeed("11111111-1111-4111-8111-111111111111", "資料庫の使い方", "00_Inbox", `# 資料庫の使い方
 ここは、一度考えたことを二度目から資産として使うための場所。
 
 ## 基本運用
@@ -117,11 +118,11 @@ const seedNotes = [
 ## 重要
 完璧に分類しようとしない。あとから検索・タグ・リンクで回収できればよい。
 #要整理`),
-  noteSeed("用語辞典テンプレ", "01_用語辞典", templates["用語辞典"]),
-  noteSeed("思考ログテンプレ", "02_思考ログ", templates["思考ログ"]),
-  noteSeed("発信ネタテンプレ", "03_発信ネタ", templates["発信ネタ"]),
-  noteSeed("黒瀬共有テンプレ", "06_AI運用", templates["黒瀬共有用まとめ"]),
-  noteSeed("タグ一覧", "00_Inbox", `# タグ一覧
+  noteSeed("22222222-2222-4222-8222-222222222222", "用語辞典テンプレ", "01_用語辞典", templates["用語辞典"]),
+  noteSeed("33333333-3333-4333-8333-333333333333", "思考ログテンプレ", "02_思考ログ", templates["思考ログ"]),
+  noteSeed("44444444-4444-4444-8444-444444444444", "発信ネタテンプレ", "03_発信ネタ", templates["発信ネタ"]),
+  noteSeed("55555555-5555-4555-8555-555555555555", "黒瀬共有テンプレ", "06_AI運用", templates["黒瀬共有用まとめ"]),
+  noteSeed("66666666-6666-4666-8666-666666666666", "タグ一覧", "00_Inbox", `# タグ一覧
 - #用語
 - #思考ログ
 - #発信ネタ
@@ -134,7 +135,7 @@ const seedNotes = [
 - #要整理
 - #保留
 - #完成`),
-  noteSeed("今月の棚卸し", "00_Inbox", `# 今月の棚卸し
+  noteSeed("77777777-7777-4777-8777-777777777777", "今月の棚卸し", "00_Inbox", `# 今月の棚卸し
 ## 見るもの
 - #要整理
 - #発信ネタ
@@ -149,7 +150,7 @@ const seedNotes = [
 - [[完璧主義]]
 - [[AIにキャラロールを与える]]
 - [[自由じゃないフリーランス]]`),
-  noteSeed("白峰", "06_AI運用", `# 白峰
+  noteSeed("88888888-8888-4888-8888-888888888888", "白峰", "06_AI運用", `# 白峰
 ## 一言でいうと
 黒瀬の方針を実装・設計・検証・手順化する実務副官。
 
@@ -157,7 +158,7 @@ const seedNotes = [
 - [[黒瀬]]
 - [[AIにキャラロールを与える]]
 #AI #用語`),
-  noteSeed("黒瀬", "06_AI運用", `# 黒瀬
+  noteSeed("99999999-9999-4999-8999-999999999999", "黒瀬", "06_AI運用", `# 黒瀬
 ## 一言でいうと
 戦略・判断・方向修正を担う相棒。
 
@@ -210,6 +211,7 @@ const els = {
   testConnection: document.querySelector("#testConnectionButton"),
   signIn: document.querySelector("#signInButton"),
   syncNow: document.querySelector("#syncNowButton"),
+  detectDuplicates: document.querySelector("#detectDuplicatesButton"),
   exportCurrent: document.querySelector("#exportCurrentButton"),
   exportAll: document.querySelector("#exportAllButton"),
   historyList: document.querySelector("#historyList"),
@@ -246,6 +248,7 @@ async function initialize() {
   els.testConnection.addEventListener("click", testSupabaseConnection);
   els.signIn.addEventListener("click", signIn);
   els.syncNow.addEventListener("click", syncNow);
+  els.detectDuplicates.addEventListener("click", reportDuplicateNotes);
 
   document.querySelectorAll(".nav-action").forEach((button) => {
     button.addEventListener("click", () => {
@@ -293,7 +296,7 @@ async function loadState() {
   }
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    const initial = { notes: seedNotes, activeNoteId: seedNotes[0].id };
+    const initial = { notes: seedNotes, folders: defaultFolders, activeNoteId: seedNotes[0].id };
     await idbSet(STATE_ID, initial);
     return initial;
   }
@@ -307,7 +310,7 @@ async function loadState() {
     await idbSet(STATE_ID, migrated);
     return migrated;
   } catch {
-    const fallback = { notes: seedNotes, activeNoteId: seedNotes[0].id };
+    const fallback = { notes: seedNotes, folders: defaultFolders, activeNoteId: seedNotes[0].id };
     await idbSet(STATE_ID, fallback);
     return fallback;
   }
@@ -929,9 +932,90 @@ function chips(items) {
   return items.length ? items.map((item) => `<span class="tag-chip">${escapeHtml(item)}</span>`).join("") : `<p class="status-text">なし</p>`;
 }
 
-function noteSeed(title, folder, content) {
-  const now = new Date().toISOString();
-  return { id: crypto.randomUUID(), title, slug: slugify(title), folder, content, createdAt: now, updatedAt: now, deletedAt: null };
+function noteSeed(id, title, folder, content) {
+  return { id, title, slug: slugify(title), folder, content, createdAt: SEED_CREATED_AT, updatedAt: SEED_CREATED_AT, deletedAt: null, versions: [] };
+}
+
+function noteContentKey(note) {
+  return JSON.stringify([note.title || "", note.folder || "00_Inbox", note.content || ""]);
+}
+
+function seedContentKeys() {
+  return new Set(seedNotes.map(noteContentKey));
+}
+
+function isOnlyUneditedSeedVault(notes) {
+  if (!Array.isArray(notes) || notes.length !== seedNotes.length) return false;
+  const seeds = seedContentKeys();
+  const seen = new Set();
+  return notes.every((note) => {
+    if (note.deletedAt) return false;
+    if (Array.isArray(note.versions) && note.versions.length) return false;
+    const key = noteContentKey(note);
+    if (!seeds.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function duplicateNoteGroups(notes, { includeDeleted = false } = {}) {
+  const groups = new Map();
+  notes.filter((note) => includeDeleted || !note.deletedAt).forEach((note) => {
+    const key = noteContentKey(note);
+    const group = groups.get(key) || [];
+    group.push(note);
+    groups.set(key, group);
+  });
+  return Array.from(groups.values()).filter((group) => group.length > 1);
+}
+
+function rankDuplicateKeeper(note) {
+  let score = 0;
+  if (!note.deletedAt) score += 1000;
+  if (note.syncStatus === "synced") score += 100;
+  if (seedNotes.some((seed) => seed.id === note.id)) score += 10;
+  return score;
+}
+
+function removeExactDuplicateNotes(notes) {
+  const removed = [];
+  const deletedAt = new Date().toISOString();
+  const removedIds = new Set();
+  duplicateNoteGroups(notes).forEach((group) => {
+    group.sort((a, b) => {
+      const scoreDiff = rankDuplicateKeeper(b) - rankDuplicateKeeper(a);
+      if (scoreDiff) return scoreDiff;
+      return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+    });
+    group.slice(1).forEach((note) => {
+      removedIds.add(note.id);
+      removed.push(note);
+    });
+  });
+  return {
+    notes: notes.map((note) => (removedIds.has(note.id) ? { ...note, deletedAt, updatedAt: deletedAt, syncStatus: "local" } : note)),
+    removed,
+  };
+}
+
+function reportDuplicateNotes() {
+  const groups = duplicateNoteGroups(state.notes);
+  if (!groups.length) {
+    renderSyncDiagnostics("重複ノート検出", {
+      ok: ["title + folder + content が完全一致する重複ノートはありません。"],
+      warnings: [],
+      blockers: [],
+    });
+    return;
+  }
+  const warnings = [`完全一致の重複候補: ${groups.length}組。自動削除はしていません。`];
+  groups.slice(0, 12).forEach((group, index) => {
+    const head = group[0];
+    warnings.push(`${index + 1}. ${head.title} / ${head.folder} / ${group.length}件`);
+    group.forEach((note) => warnings.push(`   id=${note.id} updated=${note.updatedAt || "-"} deleted=${note.deletedAt || "-"}`));
+  });
+  if (groups.length > 12) warnings.push(`ほか ${groups.length - 12} 組`);
+  renderSyncDiagnostics("重複ノート検出", { ok: [], warnings, blockers: [] });
 }
 
 function slugify(title) {
@@ -1145,8 +1229,25 @@ async function syncNow() {
     return;
   }
 
-  const remoteNotes = remoteRows.map(fromRemoteNote);
-  mergeRemoteNotes(remoteNotes);
+  const remoteNotes = (remoteRows || []).map(fromRemoteNote);
+  const syncWarnings = [];
+  if (remoteNotes.length && isOnlyUneditedSeedVault(state.notes)) {
+    state.notes = remoteNotes.map((note) => ({ ...note, syncStatus: "synced" }));
+    state.folders = normalizeFolders([...defaultFolders, ...state.notes.map((note) => note.folder)]);
+    activeNoteId = state.notes.find((note) => !note.deletedAt)?.id || state.notes[0]?.id;
+    syncWarnings.push("remoteNotesが存在し、ローカルが未編集seedのみだったため、ローカルseedを破棄してSupabase側を正としました。");
+  } else {
+    mergeRemoteNotes(remoteNotes);
+  }
+
+  const dedupeResult = removeExactDuplicateNotes(state.notes);
+  state.notes = dedupeResult.notes;
+  if (!state.notes.some((note) => note.id === activeNoteId && !note.deletedAt)) activeNoteId = state.notes.find((note) => !note.deletedAt)?.id || state.notes[0]?.id;
+  if (dedupeResult.removed.length) {
+    syncWarnings.push(`同期前に title + folder + content が完全一致する重複ノートを ${dedupeResult.removed.length} 件除去しました。`);
+    dedupeResult.removed.slice(0, 8).forEach((item) => syncWarnings.push(`除去: ${item.title} / ${item.folder} / id=${item.id}`));
+    if (dedupeResult.removed.length > 8) syncWarnings.push(`ほか ${dedupeResult.removed.length - 8} 件`);
+  }
 
   const rows = state.notes.map((note) => toRemoteNote(note, userId));
   const { error: upsertError } = await client.from("notes").upsert(rows, { onConflict: "id" });
@@ -1163,7 +1264,7 @@ async function syncNow() {
   els.syncStatus.textContent = `同期済み ${new Date().toLocaleTimeString("ja-JP")}`;
   renderSyncDiagnostics("同期成功", {
     ok: [`同期ユーザー: ${userData.user.email || userData.user.id}`, `同期対象ノート: ${rows.length}件`],
-    warnings: [],
+    warnings: syncWarnings,
     blockers: [],
   });
 }
