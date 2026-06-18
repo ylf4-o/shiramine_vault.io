@@ -402,9 +402,10 @@ button {
     display: none;
   }
 
+  body[data-mobile-section="search"] .sidebar,
+  body[data-mobile-section="tags"] .sidebar,
   body[data-mobile-section="settings"] .sidebar {
     display: block;
-    min-height: calc(100vh - 58px);
     border-right: 0;
     padding-bottom: 76px;
   }
@@ -413,6 +414,39 @@ button {
     display: none;
   }
 
+  body[data-mobile-section="settings"] .sidebar {
+    min-height: calc(100vh - 58px);
+  }
+
+  body[data-mobile-section="search"] .editor-panel,
+  body[data-mobile-section="tags"] .editor-panel {
+    display: none;
+  }
+
+  body[data-mobile-section="search"] .note-list-panel,
+  body[data-mobile-section="tags"] .note-list-panel {
+    max-height: none;
+    min-height: calc(100vh - 260px);
+  }
+
+  body[data-mobile-section="search"] .brand,
+  body[data-mobile-section="search"] .nav-section,
+  body[data-mobile-section="search"] .sync-panel,
+  body[data-mobile-section="tags"] .brand,
+  body[data-mobile-section="tags"] .search-box,
+  body[data-mobile-section="tags"] .sync-panel,
+  body[data-mobile-section="settings"] .search-box,
+  body[data-mobile-section="settings"] .nav-section:not(.sync-panel) {
+    display: none;
+  }
+
+  body[data-mobile-section="search"] .search-box,
+  body[data-mobile-section="tags"] .nav-section {
+    display: grid;
+  }
+
+  body[data-mobile-section="search"] .search-box,
+  body[data-mobile-section="tags"] .nav-section,
   body[data-mobile-section="settings"] .sync-panel {
     background: var(--surface);
     border: 1px solid var(--line);

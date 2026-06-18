@@ -274,7 +274,6 @@ async function initialize() {
         activeSpecialFilter = "";
         window.setTimeout(() => els.search.focus(), 0);
       }
-      if (section === "tags") activeSpecialFilter = "unorganized";
       if (section === "settings") activeSpecialFilter = "";
       render();
     });
