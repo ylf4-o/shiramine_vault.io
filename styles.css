@@ -402,6 +402,24 @@ button {
     display: none;
   }
 
+  body[data-mobile-section="settings"] .sidebar {
+    display: block;
+    min-height: calc(100vh - 58px);
+    border-right: 0;
+    padding-bottom: 76px;
+  }
+
+  body[data-mobile-section="settings"] .main-grid {
+    display: none;
+  }
+
+  body[data-mobile-section="settings"] .sync-panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
   .main-grid {
     grid-template-columns: 1fr;
   }

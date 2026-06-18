@@ -223,6 +223,7 @@ async function initialize() {
   state = await loadState();
   activeNoteId = state.activeNoteId || state.notes[0]?.id;
   loadSyncSettingsIntoForm();
+  document.body.dataset.mobileSection = "notes";
   els.editorPanel.dataset.mobileView = "edit";
   Object.keys(templates).forEach((name) => els.template.append(new Option(name, name)));
 
@@ -268,9 +269,13 @@ async function initialize() {
       document.querySelectorAll(".bottom-nav button").forEach((tab) => tab.classList.remove("active"));
       button.classList.add("active");
       const section = button.dataset.mobileSection;
-      if (section === "search") els.search.focus();
+      document.body.dataset.mobileSection = section;
+      if (section === "search") {
+        activeSpecialFilter = "";
+        window.setTimeout(() => els.search.focus(), 0);
+      }
       if (section === "tags") activeSpecialFilter = "unorganized";
-      if (section === "settings") alert("設定: PC表示の左サイドバーでSupabase URL、anon key、メール、パスワードを設定できます。未設定時はIndexedDB保存です。");
+      if (section === "settings") activeSpecialFilter = "";
       render();
     });
   });
@@ -1012,7 +1017,13 @@ function loadSyncSettingsIntoForm() {
 
 function getSyncSettings() {
   try {
-    return JSON.parse(localStorage.getItem(SYNC_SETTINGS_KEY)) || {};
+    const settings = JSON.parse(localStorage.getItem(SYNC_SETTINGS_KEY)) || {};
+    const normalizedUrl = normalizeSupabaseUrl(settings.url || "");
+    if (settings.url && settings.url !== normalizedUrl) {
+      settings.url = normalizedUrl;
+      localStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify(settings));
+    }
+    return { ...settings, url: normalizedUrl };
   } catch {
     return {};
   }
@@ -1175,8 +1186,8 @@ function validateSyncInputs({ url = "", key = "", email = "", password = "" }) {
       const parsed = new URL(normalizedUrl);
       if (!/^https:$/.test(parsed.protocol)) warnings.push("Supabase URLは通常 https:// で始まります。");
       if (!parsed.hostname.endsWith(".supabase.co")) warnings.push("Supabase URLのホストが *.supabase.co ではありません。カスタムドメインでなければ確認してください。");
-      if (/\/rest\/v1\/?$/i.test(url.trim())) blockers.push("Supabase URLに /rest/v1 が含まれています。Project URLだけにしてください。例: https://xxxxx.supabase.co");
-      else ok.push("Supabase URL: Project URL形式です。");
+      if (/\/rest\/v1\/?$/i.test(url.trim())) warnings.push("Supabase URLに /rest/v1 が含まれていたため、自動でProject URL形式へ補正します。");
+      ok.push("Supabase URL: Project URL形式です。");
     } catch {
       blockers.push("Supabase URLの形式がURLとして不正です。");
     }
