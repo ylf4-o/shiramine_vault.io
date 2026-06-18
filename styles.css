@@ -392,6 +392,10 @@ button {
   display: none;
 }
 
+.mobile-new-note {
+  display: none;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -464,6 +468,34 @@ button {
     border-bottom: 1px solid var(--line);
   }
 
+  body[data-mobile-section="notes"] .note-list-panel,
+  body[data-mobile-section="notes"] .mobile-tabs {
+    display: none;
+  }
+
+  body[data-mobile-section="notes"] .editor-panel {
+    min-height: calc(100vh - 58px);
+  }
+
+  body[data-mobile-section="notes"] .mobile-new-note {
+    display: inline-flex;
+  }
+
+  body[data-mobile-section="notes"] #templateSelect,
+  body[data-mobile-section="notes"] #applyTemplateButton,
+  body[data-mobile-section="notes"] #localAiButton,
+  body[data-mobile-section="notes"] #deleteNoteButton,
+  body[data-mobile-section="notes"] #restoreNoteButton,
+  body[data-mobile-section="notes"] #exportCurrentButton,
+  body[data-mobile-section="notes"] #exportAllButton {
+    display: none;
+  }
+
+  body[data-mobile-section="notes"] .title-input {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+
   .mobile-tabs {
     display: flex;
   }
@@ -483,6 +515,10 @@ button {
   .editor-panel[data-mobile-view="preview"] .preview-pane,
   .editor-panel[data-mobile-view="graph"] .inspector {
     display: block;
+  }
+
+  body[data-mobile-section="notes"] .editor-panel[data-mobile-view="edit"] .markdown-editor {
+    height: calc(100vh - 172px);
   }
 
   .bottom-nav {

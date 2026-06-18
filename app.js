@@ -183,6 +183,7 @@ const els = {
   noteList: document.querySelector("#noteList"),
   label: document.querySelector("#activeFilterLabel"),
   newNote: document.querySelector("#newNoteButton"),
+  mobileNewNote: document.querySelector("#mobileNewNoteButton"),
   quickCapture: document.querySelector("#quickCaptureButton"),
   newFolder: document.querySelector("#newFolderInput"),
   addFolder: document.querySelector("#addFolderButton"),
@@ -231,6 +232,7 @@ async function initialize() {
 
   els.search.addEventListener("input", render);
   els.newNote.addEventListener("click", () => createNote({ folder: activeFolder === "all" ? "00_Inbox" : activeFolder }));
+  els.mobileNewNote.addEventListener("click", () => createNote({ folder: "00_Inbox", title: "無題のInboxメモ" }));
   els.quickCapture.addEventListener("click", () => createNote({ folder: "00_Inbox", title: "無題のInboxメモ" }));
   els.addFolder.addEventListener("click", addFolder);
   els.renameFolder.addEventListener("click", renameActiveFolder);
@@ -273,6 +275,10 @@ async function initialize() {
       button.classList.add("active");
       const section = button.dataset.mobileSection;
       document.body.dataset.mobileSection = section;
+      if (section === "notes") {
+        els.editorPanel.dataset.mobileView = "edit";
+        window.setTimeout(() => els.content.focus(), 0);
+      }
       if (section === "search") {
         activeSpecialFilter = "";
         window.setTimeout(() => els.search.focus(), 0);

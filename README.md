@@ -121,7 +121,7 @@ RLSの詳細確認は [docs/supabase-rls-test.md](docs/supabase-rls-test.md) を
 
 下部ナビの役割:
 
-- `ノート`: ノート一覧、編集、プレビュー
+- `ノート`: スマホ向けの簡易入力欄
 - `検索`: 検索欄
 - `タグ`: フォルダ、タグ、抽出条件
 - `設定`: Supabase同期パネル
