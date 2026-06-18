@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shiramine Vault</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="資料庫ナビゲーション">
+        <div class="brand">
+          <div>
+            <p class="eyebrow">Markdown Knowledge Vault</p>
+            <h1>Shiramine Vault</h1>
+          </div>
+          <button id="quickCaptureButton" class="icon-button" title="Inboxに追加">＋</button>
+        </div>
+
+        <label class="search-box">
+          <span>検索</span>
+          <input id="searchInput" type="search" placeholder="タイトル・本文・タグ" />
+        </label>
+
+        <section class="nav-section">
+          <h2>フォルダ</h2>
+          <div id="folderList" class="nav-list"></div>
+          <div class="folder-add">
+            <input id="newFolderInput" type="text" placeholder="新規フォルダ" />
+            <button id="addFolderButton" class="tool-button">追加</button>
+            <button id="renameFolderButton" class="tool-button">改名</button>
+            <button id="deleteFolderButton" class="tool-button">削除</button>
+          </div>
+        </section>
+
+        <section class="nav-section">
+          <h2>状態タグ</h2>
+          <div id="tagList" class="tag-list"></div>
+        </section>
+
+        <section class="nav-section compact">
+          <h2>抽出</h2>
+          <button class="nav-action" data-filter="recent">最近更新</button>
+          <button class="nav-action" data-filter="unorganized">未整理</button>
+          <button class="nav-action" data-filter="kurosese">#黒瀬共有</button>
+          <button class="nav-action" data-filter="missing-links">未作成リンク</button>
+          <button class="nav-action" data-filter="trash">ゴミ箱</button>
+        </section>
+
+        <section class="nav-section sync-panel">
+          <h2>同期</h2>
+          <input id="supabaseUrlInput" type="url" placeholder="Supabase URL" />
+          <input id="supabaseKeyInput" type="password" placeholder="anon public key" />
+          <input id="emailInput" type="email" placeholder="メールアドレス" />
+          <input id="passwordInput" type="password" placeholder="パスワード" />
+          <div class="sync-actions">
+            <button id="saveSyncSettingsButton" class="tool-button">保存</button>
+            <button id="signInButton" class="tool-button">ログイン</button>
+            <button id="syncNowButton" class="tool-button">同期</button>
+          </div>
+          <p id="syncStatus" class="status-text">ローカル保存</p>
+        </section>
+      </aside>
+
+      <main class="main-grid">
+        <section class="note-list-panel" aria-label="ノート一覧">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow" id="activeFilterLabel">すべて</p>
+              <h2>ノート</h2>
+            </div>
+            <button id="newNoteButton" class="primary-button">新規</button>
+          </div>
+          <div id="noteList" class="note-list"></div>
+        </section>
+
+        <section class="editor-panel" aria-label="エディタ">
+          <div class="editor-toolbar">
+            <input id="titleInput" class="title-input" aria-label="タイトル" />
+            <select id="folderSelect" class="select-input" aria-label="フォルダ"></select>
+            <select id="templateSelect" class="select-input" aria-label="テンプレート">
+              <option value="">テンプレート</option>
+            </select>
+            <button id="applyTemplateButton" class="tool-button">挿入</button>
+            <button id="localAiButton" class="tool-button">AI支援</button>
+            <button id="deleteNoteButton" class="tool-button">削除</button>
+            <button id="restoreNoteButton" class="tool-button">復元</button>
+            <button id="exportCurrentButton" class="tool-button">MD</button>
+            <button id="exportAllButton" class="tool-button">ZIP</button>
+          </div>
+
+          <div class="mobile-tabs" role="tablist" aria-label="表示切替">
+            <button class="tab-button active" data-view="edit">編集</button>
+            <button class="tab-button" data-view="preview">プレビュー</button>
+            <button class="tab-button" data-view="graph">関連</button>
+          </div>
+
+          <div class="workspace">
+            <textarea id="contentInput" class="markdown-editor" spellcheck="true"></textarea>
+            <article id="preview" class="preview-pane"></article>
+            <aside class="inspector" aria-label="関連情報">
+              <section>
+                <h3>タグ</h3>
+                <div id="currentTags" class="tag-list"></div>
+              </section>
+              <section>
+                <h3>リンク</h3>
+                <div id="linkList" class="link-list"></div>
+              </section>
+              <section>
+                <h3>被リンク</h3>
+                <div id="backlinkList" class="link-list"></div>
+              </section>
+              <section>
+                <h3>保存状態</h3>
+                <p id="saveStatus" class="status-text">待機中</p>
+              </section>
+              <section>
+                <h3>更新履歴</h3>
+                <div id="historyList" class="link-list"></div>
+              </section>
+              <section>
+                <h3>AI支援</h3>
+                <div id="aiPanel" class="ai-panel"></div>
+              </section>
+            </aside>
+          </div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="スマホナビゲーション">
+        <button data-mobile-section="notes" class="active">ノート</button>
+        <button data-mobile-section="search">検索</button>
+        <button data-mobile-section="tags">タグ</button>
+        <button data-mobile-section="settings">設定</button>
+      </nav>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./vendor/encoding.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
