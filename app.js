@@ -201,11 +201,13 @@ const els = {
   backlinks: document.querySelector("#backlinkList"),
   saveStatus: document.querySelector("#saveStatus"),
   syncStatus: document.querySelector("#syncStatus"),
+  syncDiagnostics: document.querySelector("#syncDiagnostics"),
   supabaseUrl: document.querySelector("#supabaseUrlInput"),
   supabaseKey: document.querySelector("#supabaseKeyInput"),
   email: document.querySelector("#emailInput"),
   password: document.querySelector("#passwordInput"),
   saveSyncSettings: document.querySelector("#saveSyncSettingsButton"),
+  testConnection: document.querySelector("#testConnectionButton"),
   signIn: document.querySelector("#signInButton"),
   syncNow: document.querySelector("#syncNowButton"),
   exportCurrent: document.querySelector("#exportCurrentButton"),
@@ -240,6 +242,7 @@ async function initialize() {
   els.exportCurrent.addEventListener("click", exportCurrentMarkdown);
   els.exportAll.addEventListener("click", exportAllZip);
   els.saveSyncSettings.addEventListener("click", saveSyncSettingsFromForm);
+  els.testConnection.addEventListener("click", testSupabaseConnection);
   els.signIn.addEventListener("click", signIn);
   els.syncNow.addEventListener("click", syncNow);
 
@@ -1004,6 +1007,7 @@ function loadSyncSettingsIntoForm() {
   els.supabaseKey.value = settings.key || "";
   els.email.value = settings.email || "";
   els.syncStatus.textContent = settings.url && settings.key ? "同期設定あり" : "ローカル保存";
+  renderSyncDiagnostics("同期設定", validateSyncInputs({ ...settings, password: "" }));
 }
 
 function getSyncSettings() {
@@ -1016,25 +1020,65 @@ function getSyncSettings() {
 
 function saveSyncSettingsFromForm() {
   const settings = {
-    url: els.supabaseUrl.value.trim(),
+    url: normalizeSupabaseUrl(els.supabaseUrl.value),
     key: els.supabaseKey.value.trim(),
     email: els.email.value.trim(),
   };
   localStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify(settings));
+  els.supabaseUrl.value = settings.url;
   els.syncStatus.textContent = settings.url && settings.key ? "同期設定を保存しました" : "ローカル保存";
+  renderSyncDiagnostics("保存時チェック", validateSyncInputs({ ...settings, password: els.password.value }));
 }
 
 function getSupabaseClient() {
   const settings = getSyncSettings();
-  if (!settings.url || !settings.key) {
-    els.syncStatus.textContent = "Supabase URL/key 未設定";
+  const diagnostics = validateSyncInputs({ ...settings, password: els.password.value });
+  if (diagnostics.blockers.length) {
+    els.syncStatus.textContent = "Supabase設定エラー";
+    renderSyncDiagnostics("接続前チェック", diagnostics);
     return null;
   }
   if (!window.supabase?.createClient) {
     els.syncStatus.textContent = "Supabaseライブラリ未読込";
+    renderSyncDiagnostics("接続前チェック", {
+      ok: [],
+      warnings: [],
+      blockers: ["Supabaseライブラリが読み込めていません。ネットワーク、CSP、CDN読込を確認してください。"],
+    });
     return null;
   }
   return window.supabase.createClient(settings.url, settings.key);
+}
+
+async function testSupabaseConnection() {
+  saveSyncSettingsFromForm();
+  const settings = getSyncSettings();
+  const diagnostics = validateSyncInputs({ ...settings, password: els.password.value });
+  if (diagnostics.blockers.length) {
+    els.syncStatus.textContent = "接続確認前に設定修正が必要";
+    renderSyncDiagnostics("接続確認", diagnostics);
+    return;
+  }
+
+  const endpoint = `${settings.url}/auth/v1/health`;
+  els.syncStatus.textContent = "Supabase接続確認中";
+  try {
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        apikey: settings.key,
+      },
+    });
+    renderSyncDiagnostics("接続確認", {
+      ok: [`Auth endpointへ到達しました。HTTP ${response.status}`],
+      warnings: response.ok ? [] : [`HTTP ${response.status} が返りました。到達はしていますが、Supabase側の状態を確認してください。`],
+      blockers: [],
+    });
+    els.syncStatus.textContent = response.ok ? "Supabase接続OK" : `Supabase応答あり: HTTP ${response.status}`;
+  } catch (error) {
+    els.syncStatus.textContent = `接続失敗: ${error.message}`;
+    renderSyncDiagnostics("接続失敗", buildNetworkErrorDiagnostics(error, settings.url));
+  }
 }
 
 async function signIn() {
@@ -1045,15 +1089,23 @@ async function signIn() {
   const password = els.password.value;
   if (!email || !password) {
     els.syncStatus.textContent = "メールとパスワードを入力してください";
+    renderSyncDiagnostics("ログイン前チェック", validateSyncInputs({ ...getSyncSettings(), password }));
     return;
   }
   els.syncStatus.textContent = "ログイン中";
-  const { error } = await client.auth.signInWithPassword({ email, password });
+  renderSyncDiagnostics("ログイン前チェック", validateSyncInputs({ ...getSyncSettings(), email, password }));
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error) {
     els.syncStatus.textContent = `ログイン失敗: ${error.message}`;
+    renderSyncDiagnostics("ログイン失敗", buildAuthErrorDiagnostics(error));
     return;
   }
   els.syncStatus.textContent = "ログイン済み";
+  renderSyncDiagnostics("ログイン成功", {
+    ok: [`ログインユーザー: ${data?.user?.email || email}`, `user_id: ${data?.user?.id || "取得不可"}`],
+    warnings: [],
+    blockers: [],
+  });
   await syncNow();
 }
 
@@ -1069,7 +1121,8 @@ async function syncNow() {
   els.syncStatus.textContent = "同期中";
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData?.user) {
-    els.syncStatus.textContent = "未ログイン";
+    els.syncStatus.textContent = userError ? `未ログイン: ${userError.message}` : "未ログイン";
+    renderSyncDiagnostics("同期前チェック", buildAuthErrorDiagnostics(userError || { message: "セッションがありません。先にログインしてください。" }));
     return;
   }
   const userId = userData.user.id;
@@ -1078,6 +1131,7 @@ async function syncNow() {
     .select("id,user_id,title,slug,content,folder_id,versions,created_at,updated_at,deleted_at");
   if (fetchError) {
     els.syncStatus.textContent = `取得失敗: ${fetchError.message}`;
+    renderSyncDiagnostics("取得失敗", buildDatabaseErrorDiagnostics(fetchError));
     return;
   }
 
@@ -1088,6 +1142,7 @@ async function syncNow() {
   const { error: upsertError } = await client.from("notes").upsert(rows, { onConflict: "id" });
   if (upsertError) {
     els.syncStatus.textContent = `保存失敗: ${upsertError.message}`;
+    renderSyncDiagnostics("保存失敗", buildDatabaseErrorDiagnostics(upsertError));
     return;
   }
   state.notes.forEach((note) => {
@@ -1096,6 +1151,106 @@ async function syncNow() {
   persist(true);
   render();
   els.syncStatus.textContent = `同期済み ${new Date().toLocaleTimeString("ja-JP")}`;
+  renderSyncDiagnostics("同期成功", {
+    ok: [`同期ユーザー: ${userData.user.email || userData.user.id}`, `同期対象ノート: ${rows.length}件`],
+    warnings: [],
+    blockers: [],
+  });
+}
+
+function normalizeSupabaseUrl(value) {
+  return value.trim().replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/, "");
+}
+
+function validateSyncInputs({ url = "", key = "", email = "", password = "" }) {
+  const ok = [];
+  const warnings = [];
+  const blockers = [];
+  const normalizedUrl = normalizeSupabaseUrl(url);
+
+  if (!normalizedUrl) {
+    blockers.push("Supabase URLが未入力です。Project Settings > API の Project URL を入れてください。");
+  } else {
+    try {
+      const parsed = new URL(normalizedUrl);
+      if (!/^https:$/.test(parsed.protocol)) warnings.push("Supabase URLは通常 https:// で始まります。");
+      if (!parsed.hostname.endsWith(".supabase.co")) warnings.push("Supabase URLのホストが *.supabase.co ではありません。カスタムドメインでなければ確認してください。");
+      if (/\/rest\/v1\/?$/i.test(url.trim())) blockers.push("Supabase URLに /rest/v1 が含まれています。Project URLだけにしてください。例: https://xxxxx.supabase.co");
+      else ok.push("Supabase URL: Project URL形式です。");
+    } catch {
+      blockers.push("Supabase URLの形式がURLとして不正です。");
+    }
+  }
+
+  if (!key) {
+    blockers.push("anon public key / publishable key が未入力です。");
+  } else {
+    if (key.includes("service_role")) blockers.push("service_role keyは絶対に使わないでください。anon public keyまたはpublishable keyを使ってください。");
+    if (key.startsWith("eyJ")) ok.push("Key: JWT形式のanon public keyらしい形式です。");
+    else if (key.startsWith("sb_publishable_")) ok.push("Key: Supabase publishable keyらしい形式です。");
+    else warnings.push("Key形式が一般的な anon JWT / sb_publishable_ 形式に見えません。Project Settings > API のキーを確認してください。");
+  }
+
+  if (!email) blockers.push("メールアドレスが未入力です。Authentication > Users に存在するメールを入れてください。");
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) blockers.push("メールアドレスの形式が不正です。");
+  else ok.push("メール: 形式は正常です。");
+
+  if (!password) warnings.push("パスワード未入力です。ログイン時は入力してください。");
+
+  return { ok, warnings, blockers };
+}
+
+function renderSyncDiagnostics(title, diagnostics) {
+  if (!els.syncDiagnostics) return;
+  const lines = [`[${title}]`];
+  diagnostics.ok.forEach((item) => lines.push(`OK: ${item}`));
+  diagnostics.warnings.forEach((item) => lines.push(`確認: ${item}`));
+  diagnostics.blockers.forEach((item) => lines.push(`要修正: ${item}`));
+  if (!diagnostics.ok.length && !diagnostics.warnings.length && !diagnostics.blockers.length) lines.push("表示する診断はありません。");
+  els.syncDiagnostics.textContent = lines.join("\n");
+}
+
+function buildAuthErrorDiagnostics(error) {
+  const message = error?.message || "不明なAuthエラー";
+  const status = error?.status || error?.code || "";
+  const blockers = [`Supabase Auth error: ${message}${status ? ` (${status})` : ""}`];
+  const warnings = [
+    "まず接続確認ボタンを押し、Auth endpointへ到達できるか確認してください。",
+    "Authentication > Users に該当メールのユーザーが存在するか確認してください。",
+    "メール確認が必須なら、対象ユーザーのConfirmが完了しているか確認してください。",
+    "パスワードが正しいか確認してください。",
+    "Supabase URLが /rest/v1 ではなく Project URL だけになっているか確認してください。",
+    "anon public keyまたはpublishable keyが同じプロジェクトのものか確認してください。",
+  ];
+  return { ok: [], warnings, blockers };
+}
+
+function buildNetworkErrorDiagnostics(error, url) {
+  return {
+    ok: [],
+    warnings: [
+      `確認URL: ${url}`,
+      "Supabase Dashboard > Project Settings > API の Project URLを再コピーしてください。",
+      "Project URLにタイプミスがないか確認してください。",
+      "プロジェクト作成直後なら数分待って再試行してください。",
+      "ブラウザ拡張、広告ブロック、セキュリティソフト、VPNで supabase.co への通信が遮断されていないか確認してください。",
+      "別ブラウザまたはスマホ回線で同じURLを試してください。",
+    ],
+    blockers: [`Network error: ${error?.message || "Failed to fetch"}`],
+  };
+}
+
+function buildDatabaseErrorDiagnostics(error) {
+  const message = error?.message || "不明なDBエラー";
+  const details = [error?.details, error?.hint, error?.code].filter(Boolean).join(" / ");
+  return {
+    ok: [],
+    warnings: [
+      "RLSで自分のuser_idだけ許可されているか確認してください。",
+      "schema.sqlが現在のSupabaseプロジェクトへ適用済みか確認してください。",
+    ],
+    blockers: [`Supabase DB error: ${message}${details ? ` (${details})` : ""}`],
+  };
 }
 
 function mergeRemoteNotes(remoteNotes) {
