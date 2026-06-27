@@ -147,7 +147,7 @@ button {
 
 .sync-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 
@@ -215,6 +215,81 @@ button {
   border-right: 1px solid var(--line);
   overflow: auto;
   background: var(--surface);
+}
+
+.decision-panel {
+  display: none;
+  grid-column: 1 / -1;
+  min-width: 0;
+  background: var(--surface);
+}
+
+body[data-mobile-section="decisions"] .decision-panel {
+  display: block;
+}
+
+body[data-mobile-section="decisions"] .note-list-panel,
+body[data-mobile-section="decisions"] .editor-panel {
+  display: none;
+}
+
+.decision-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+}
+
+.decision-list-panel,
+.decision-form-panel {
+  min-width: 0;
+  padding: 20px;
+  overflow: auto;
+}
+
+.decision-list-panel {
+  border-right: 1px solid var(--line);
+}
+
+.decision-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.decision-form {
+  display: grid;
+  gap: 14px;
+  max-width: 900px;
+}
+
+.decision-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.decision-form input,
+.decision-form textarea,
+.decision-form select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.decision-form textarea {
+  resize: vertical;
+  min-height: 92px;
+  line-height: 1.6;
+}
+
+.decision-form select[multiple] {
+  min-height: 150px;
 }
 
 .panel-header {
@@ -427,6 +502,29 @@ button {
     display: none;
   }
 
+  body[data-mobile-section="decisions"] .sidebar {
+    display: none;
+  }
+
+  body[data-mobile-section="decisions"] .main-grid {
+    display: grid;
+  }
+
+  body[data-mobile-section="decisions"] .decision-layout {
+    min-height: calc(100vh - 58px);
+    grid-template-columns: 1fr;
+  }
+
+  body[data-mobile-section="decisions"] .decision-list-panel,
+  body[data-mobile-section="decisions"] .decision-form-panel {
+    padding: 14px;
+    border-right: 0;
+  }
+
+  body[data-mobile-section="decisions"] .decision-filters {
+    grid-template-columns: 1fr;
+  }
+
   body[data-mobile-section="search"] .note-list-panel,
   body[data-mobile-section="tags"] .note-list-panel {
     max-height: none;
@@ -525,7 +623,7 @@ button {
     position: fixed;
     inset: auto 0 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     border-top: 1px solid var(--line);
     background: var(--surface-strong);
     z-index: 10;

@@ -18,6 +18,9 @@ const defaultFolders = [
   "99_Archive",
 ];
 
+const decisionCategories = ["仕事", "お金", "健康", "人間関係", "創作", "生活", "遊び", "その他"];
+const decisionEvaluations = ["正解", "微妙", "失敗", "保留"];
+
 const templates = {
   "用語辞典": `# 用語名
 ## 一言でいうと
@@ -168,8 +171,9 @@ const seedNotes = [
 #AI #黒瀬共有`),
 ];
 
-let state = { notes: seedNotes, folders: defaultFolders, activeNoteId: seedNotes[0]?.id };
+let state = { notes: seedNotes, folders: defaultFolders, decisionLogs: [], activeNoteId: seedNotes[0]?.id, activeDecisionLogId: null };
 let activeNoteId = state.activeNoteId || state.notes[0]?.id;
+let activeDecisionLogId = state.activeDecisionLogId || null;
 let activeFolder = "all";
 let activeTag = "";
 let activeSpecialFilter = "";
@@ -213,6 +217,24 @@ const els = {
   signIn: document.querySelector("#signInButton"),
   syncNow: document.querySelector("#syncNowButton"),
   detectDuplicates: document.querySelector("#detectDuplicatesButton"),
+  decisionLogNav: document.querySelector("#decisionLogNavButton"),
+  decisionFilterLabel: document.querySelector("#decisionFilterLabel"),
+  decisionCategoryFilter: document.querySelector("#decisionCategoryFilter"),
+  decisionTagFilter: document.querySelector("#decisionTagFilter"),
+  decisionLogList: document.querySelector("#decisionLogList"),
+  newDecision: document.querySelector("#newDecisionButton"),
+  saveDecision: document.querySelector("#saveDecisionButton"),
+  deleteDecision: document.querySelector("#deleteDecisionButton"),
+  decisionDate: document.querySelector("#decisionDateInput"),
+  decisionCategory: document.querySelector("#decisionCategoryInput"),
+  decisionEvaluation: document.querySelector("#decisionEvaluationInput"),
+  decision: document.querySelector("#decisionInput"),
+  decisionAlternatives: document.querySelector("#decisionAlternativesInput"),
+  decisionReason: document.querySelector("#decisionReasonInput"),
+  decisionResult: document.querySelector("#decisionResultInput"),
+  decisionTags: document.querySelector("#decisionTagsInput"),
+  decisionRelatedNotes: document.querySelector("#decisionRelatedNotesInput"),
+  decisionRelatedLinks: document.querySelector("#decisionRelatedLinks"),
   exportCurrent: document.querySelector("#exportCurrentButton"),
   exportAll: document.querySelector("#exportAllButton"),
   historyList: document.querySelector("#historyList"),
@@ -225,10 +247,12 @@ initialize();
 async function initialize() {
   state = await loadState();
   activeNoteId = state.activeNoteId || state.notes[0]?.id;
+  activeDecisionLogId = state.activeDecisionLogId || state.decisionLogs?.find((log) => !log.deletedAt)?.id || null;
   loadSyncSettingsIntoForm();
   document.body.dataset.mobileSection = "notes";
   els.editorPanel.dataset.mobileView = "edit";
   Object.keys(templates).forEach((name) => els.template.append(new Option(name, name)));
+  populateDecisionStaticOptions();
 
   els.search.addEventListener("input", render);
   els.newNote.addEventListener("click", () => createNote({ folder: activeFolder === "all" ? "00_Inbox" : activeFolder }));
@@ -251,9 +275,17 @@ async function initialize() {
   els.signIn.addEventListener("click", signIn);
   els.syncNow.addEventListener("click", syncNow);
   els.detectDuplicates.addEventListener("click", reportDuplicateNotes);
+  els.decisionLogNav.addEventListener("click", () => setMobileSection("decisions"));
+  els.newDecision.addEventListener("click", createDecisionLog);
+  els.saveDecision.addEventListener("click", saveDecisionLogFromForm);
+  els.deleteDecision.addEventListener("click", deleteActiveDecisionLog);
+  els.decisionCategoryFilter.addEventListener("change", renderDecisionLogs);
+  els.decisionTagFilter.addEventListener("change", renderDecisionLogs);
 
   document.querySelectorAll(".nav-action").forEach((button) => {
     button.addEventListener("click", () => {
+      if (!button.dataset.filter) return;
+      setMobileSection("notes");
       activeSpecialFilter = button.dataset.filter;
       activeFolder = "all";
       activeTag = "";
@@ -271,23 +303,25 @@ async function initialize() {
 
   document.querySelectorAll(".bottom-nav button").forEach((button) => {
     button.addEventListener("click", () => {
-      document.querySelectorAll(".bottom-nav button").forEach((tab) => tab.classList.remove("active"));
-      button.classList.add("active");
-      const section = button.dataset.mobileSection;
-      document.body.dataset.mobileSection = section;
-      if (section === "notes") {
-        els.editorPanel.dataset.mobileView = "edit";
-        window.setTimeout(() => els.content.focus(), 0);
-      }
-      if (section === "search") {
-        activeSpecialFilter = "";
-        window.setTimeout(() => els.search.focus(), 0);
-      }
-      if (section === "settings") activeSpecialFilter = "";
-      render();
+      setMobileSection(button.dataset.mobileSection);
     });
   });
 
+  render();
+}
+
+function setMobileSection(section) {
+  document.querySelectorAll(".bottom-nav button").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobileSection === section));
+  document.body.dataset.mobileSection = section;
+  if (section === "notes") {
+    els.editorPanel.dataset.mobileView = "edit";
+    window.setTimeout(() => els.content.focus(), 0);
+  }
+  if (section === "search") {
+    activeSpecialFilter = "";
+    window.setTimeout(() => els.search.focus(), 0);
+  }
+  if (section === "settings") activeSpecialFilter = "";
   render();
 }
 
@@ -297,12 +331,14 @@ async function loadState() {
     return {
       notes: normalizeNotes(saved.notes),
       folders: normalizeFolders(saved.folders),
+      decisionLogs: normalizeDecisionLogs(saved.decisionLogs),
       activeNoteId: saved.activeNoteId,
+      activeDecisionLogId: saved.activeDecisionLogId,
     };
   }
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    const initial = { notes: seedNotes, folders: defaultFolders, activeNoteId: seedNotes[0].id };
+    const initial = { notes: seedNotes, folders: defaultFolders, decisionLogs: [], activeNoteId: seedNotes[0].id, activeDecisionLogId: null };
     await idbSet(STATE_ID, initial);
     return initial;
   }
@@ -311,12 +347,14 @@ async function loadState() {
     const migrated = {
       notes: normalizeNotes(Array.isArray(parsed.notes) && parsed.notes.length ? parsed.notes : seedNotes),
       folders: normalizeFolders(parsed.folders),
+      decisionLogs: normalizeDecisionLogs(parsed.decisionLogs),
       activeNoteId: parsed.activeNoteId,
+      activeDecisionLogId: parsed.activeDecisionLogId,
     };
     await idbSet(STATE_ID, migrated);
     return migrated;
   } catch {
-    const fallback = { notes: seedNotes, folders: defaultFolders, activeNoteId: seedNotes[0].id };
+    const fallback = { notes: seedNotes, folders: defaultFolders, decisionLogs: [], activeNoteId: seedNotes[0].id, activeDecisionLogId: null };
     await idbSet(STATE_ID, fallback);
     return fallback;
   }
@@ -326,9 +364,9 @@ function persist(immediate = false) {
   clearTimeout(saveTimer);
   els.saveStatus.textContent = "保存待機中";
   const run = async () => {
-    const snapshot = { notes: state.notes, folders: allFolders(), activeNoteId };
+    const snapshot = { notes: state.notes, folders: allFolders(), decisionLogs: state.decisionLogs || [], activeNoteId, activeDecisionLogId };
     await idbSet(STATE_ID, snapshot);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes: state.notes, folders: allFolders(), activeNoteId }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes: state.notes, folders: allFolders(), decisionLogs: state.decisionLogs || [], activeNoteId, activeDecisionLogId }));
     els.saveStatus.textContent = `IndexedDB保存済み ${new Date().toLocaleTimeString("ja-JP")}`;
     scheduleSync();
   };
@@ -395,6 +433,8 @@ function render() {
   renderTags();
   renderNoteList();
   renderEditor();
+  renderDecisionLogs();
+  renderDecisionForm();
 }
 
 function renderFolders() {
@@ -500,6 +540,195 @@ function renderSecondary(note) {
   renderAiPanel(note);
   els.deleteNote.style.display = note.deletedAt ? "none" : "";
   els.restoreNote.style.display = note.deletedAt ? "" : "none";
+}
+
+function populateDecisionStaticOptions() {
+  fillSelect(els.decisionCategory, decisionCategories);
+  fillSelect(els.decisionEvaluation, decisionEvaluations);
+  fillSelect(els.decisionCategoryFilter, ["すべて", ...decisionCategories], "すべて");
+}
+
+function fillSelect(select, values, selected = values[0]) {
+  select.innerHTML = "";
+  values.forEach((value) => select.append(new Option(value, value, false, value === selected)));
+}
+
+function activeDecisionLog() {
+  return (state.decisionLogs || []).find((log) => log.id === activeDecisionLogId) || (state.decisionLogs || []).find((log) => !log.deletedAt);
+}
+
+function createDecisionLog() {
+  const log = newDecisionLogDraft();
+  state.decisionLogs = [log, ...(state.decisionLogs || [])];
+  activeDecisionLogId = log.id;
+  state.activeDecisionLogId = activeDecisionLogId;
+  setMobileSection("decisions");
+  persist(true);
+  render();
+  window.setTimeout(() => els.decision.focus(), 0);
+}
+
+function newDecisionLogDraft() {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+    date: today(),
+    category: "仕事",
+    decision: "",
+    alternatives: "",
+    reason: "",
+    result: "",
+    evaluation: "保留",
+    tags: [],
+    relatedNoteIds: [],
+    deletedAt: null,
+    syncStatus: "local",
+  };
+}
+
+function saveDecisionLogFromForm() {
+  let log = activeDecisionLog();
+  if (!log) {
+    log = newDecisionLogDraft();
+    state.decisionLogs = [log, ...(state.decisionLogs || [])];
+    activeDecisionLogId = log.id;
+    state.activeDecisionLogId = activeDecisionLogId;
+  }
+  log.date = els.decisionDate.value || today();
+  log.category = els.decisionCategory.value || "その他";
+  log.decision = els.decision.value.trim();
+  log.alternatives = els.decisionAlternatives.value.trim();
+  log.reason = els.decisionReason.value.trim();
+  log.result = els.decisionResult.value.trim();
+  log.evaluation = els.decisionEvaluation.value || "保留";
+  log.tags = normalizeDecisionTags(els.decisionTags.value);
+  log.relatedNoteIds = Array.from(els.decisionRelatedNotes.selectedOptions).map((option) => option.value);
+  log.updatedAt = new Date().toISOString();
+  log.syncStatus = "local";
+  persist(true);
+  render();
+}
+
+function deleteActiveDecisionLog() {
+  const log = activeDecisionLog();
+  if (!log) return;
+  log.deletedAt = new Date().toISOString();
+  log.updatedAt = log.deletedAt;
+  log.syncStatus = "local";
+  activeDecisionLogId = (state.decisionLogs || []).find((item) => !item.deletedAt && item.id !== log.id)?.id || null;
+  state.activeDecisionLogId = activeDecisionLogId;
+  persist(true);
+  render();
+}
+
+function renderDecisionLogs() {
+  if (!els.decisionLogList) return;
+  renderDecisionFilterOptions();
+  const logs = filteredDecisionLogs();
+  els.decisionFilterLabel.textContent = decisionFilterLabel(logs.length);
+  els.decisionLogList.innerHTML = "";
+  logs.forEach((log) => {
+    const card = document.createElement("button");
+    card.className = "note-card";
+    card.classList.toggle("active", log.id === activeDecisionLogId);
+    card.innerHTML = `<h3>${escapeHtml(log.decision || "未入力の意思決定")}</h3><p>${escapeHtml(log.date)} ・ ${escapeHtml(log.category)} ・ ${escapeHtml(log.evaluation)}</p><p>${escapeHtml(summary(log.reason || log.result || log.alternatives || "詳細なし"))}</p>`;
+    card.addEventListener("click", () => {
+      activeDecisionLogId = log.id;
+      state.activeDecisionLogId = activeDecisionLogId;
+      persist(true);
+      renderDecisionLogs();
+      renderDecisionForm();
+    });
+    els.decisionLogList.append(card);
+  });
+  if (!logs.length) {
+    const empty = document.createElement("p");
+    empty.className = "status-text";
+    empty.textContent = "該当する意思決定ログはありません。";
+    els.decisionLogList.append(empty);
+  }
+}
+
+function renderDecisionFilterOptions() {
+  const currentTag = els.decisionTagFilter.value || "すべて";
+  const tags = Array.from(new Set((state.decisionLogs || []).filter((log) => !log.deletedAt).flatMap((log) => log.tags))).sort((a, b) => a.localeCompare(b, "ja"));
+  fillSelect(els.decisionTagFilter, ["すべて", ...tags], tags.includes(currentTag) ? currentTag : "すべて");
+}
+
+function filteredDecisionLogs() {
+  const category = els.decisionCategoryFilter.value || "すべて";
+  const tag = els.decisionTagFilter.value || "すべて";
+  return (state.decisionLogs || [])
+    .filter((log) => !log.deletedAt)
+    .filter((log) => category === "すべて" || log.category === category)
+    .filter((log) => tag === "すべて" || log.tags.includes(tag))
+    .sort((a, b) => `${b.date}T${b.updatedAt}`.localeCompare(`${a.date}T${a.updatedAt}`));
+}
+
+function decisionFilterLabel(count) {
+  const parts = [];
+  if (els.decisionCategoryFilter.value && els.decisionCategoryFilter.value !== "すべて") parts.push(els.decisionCategoryFilter.value);
+  if (els.decisionTagFilter.value && els.decisionTagFilter.value !== "すべて") parts.push(`#${els.decisionTagFilter.value}`);
+  return `${parts.length ? parts.join(" / ") : "すべて"} ・ ${count}件`;
+}
+
+function renderDecisionForm() {
+  if (!els.decisionRelatedNotes) return;
+  const log = activeDecisionLog();
+  renderDecisionRelatedNoteOptions(log);
+  if (!log) {
+    els.decisionDate.value = today();
+    els.decisionCategory.value = "仕事";
+    els.decisionEvaluation.value = "保留";
+    els.decision.value = "";
+    els.decisionAlternatives.value = "";
+    els.decisionReason.value = "";
+    els.decisionResult.value = "";
+    els.decisionTags.value = "";
+    els.decisionRelatedLinks.innerHTML = `<p class="status-text">関連ノートなし</p>`;
+    return;
+  }
+  els.decisionDate.value = log.date;
+  els.decisionCategory.value = log.category;
+  els.decisionEvaluation.value = log.evaluation;
+  els.decision.value = log.decision;
+  els.decisionAlternatives.value = log.alternatives;
+  els.decisionReason.value = log.reason;
+  els.decisionResult.value = log.result;
+  els.decisionTags.value = log.tags.join(", ");
+  Array.from(els.decisionRelatedNotes.options).forEach((option) => {
+    option.selected = log.relatedNoteIds.includes(option.value);
+  });
+  renderDecisionRelatedLinks(log);
+}
+
+function renderDecisionRelatedNoteOptions(log) {
+  const selected = new Set(log?.relatedNoteIds || []);
+  els.decisionRelatedNotes.innerHTML = "";
+  state.notes.filter((note) => !note.deletedAt).sort((a, b) => a.title.localeCompare(b.title, "ja")).forEach((note) => {
+    const option = new Option(`${note.title} (${note.folder})`, note.id, false, selected.has(note.id));
+    els.decisionRelatedNotes.append(option);
+  });
+}
+
+function renderDecisionRelatedLinks(log) {
+  els.decisionRelatedLinks.innerHTML = "";
+  const linkedNotes = (log.relatedNoteIds || []).map((id) => state.notes.find((note) => note.id === id)).filter(Boolean);
+  linkedNotes.forEach((note) => {
+    els.decisionRelatedLinks.append(button(note.title, "link-chip", () => {
+      activeNoteId = note.id;
+      state.activeNoteId = activeNoteId;
+      setMobileSection("notes");
+    }));
+  });
+  if (!linkedNotes.length) els.decisionRelatedLinks.innerHTML = `<p class="status-text">関連ノートなし</p>`;
+}
+
+function normalizeDecisionTags(value) {
+  const items = Array.isArray(value) ? value : String(value || "").split(/[,\s、#]+/);
+  return Array.from(new Set(items.map((tag) => tag.trim().replace(/^#/, "")).filter(Boolean)));
 }
 
 function filteredNotes() {
@@ -620,6 +849,25 @@ function normalizeNotes(notes) {
     updatedAt: note.updatedAt || note.updated_at || new Date().toISOString(),
     deletedAt: note.deletedAt || note.deleted_at || null,
     versions: Array.isArray(note.versions) ? note.versions : [],
+  }));
+}
+
+function normalizeDecisionLogs(logs) {
+  return (Array.isArray(logs) ? logs : []).map((log) => ({
+    id: log.id || crypto.randomUUID(),
+    createdAt: log.createdAt || log.created_at || new Date().toISOString(),
+    updatedAt: log.updatedAt || log.updated_at || log.createdAt || log.created_at || new Date().toISOString(),
+    date: log.date || new Date().toISOString().slice(0, 10),
+    category: decisionCategories.includes(log.category) ? log.category : "その他",
+    decision: log.decision || "",
+    alternatives: log.alternatives || "",
+    reason: log.reason || "",
+    result: log.result || "",
+    evaluation: decisionEvaluations.includes(log.evaluation) ? log.evaluation : "保留",
+    tags: normalizeDecisionTags(log.tags),
+    relatedNoteIds: Array.isArray(log.relatedNoteIds) ? log.relatedNoteIds : Array.isArray(log.related_note_ids) ? log.related_note_ids : [],
+    deletedAt: log.deletedAt || log.deleted_at || null,
+    syncStatus: log.syncStatus || "local",
   }));
 }
 
@@ -1234,8 +1482,17 @@ async function syncNow() {
     renderSyncDiagnostics("取得失敗", buildDatabaseErrorDiagnostics(fetchError));
     return;
   }
+  const { data: remoteDecisionRows, error: decisionFetchError } = await client
+    .from("decision_logs")
+    .select("id,user_id,created_at,date,category,decision,alternatives,reason,result,evaluation,tags,related_note_ids,updated_at,deleted_at");
+  if (decisionFetchError) {
+    els.syncStatus.textContent = `意思決定ログ取得失敗: ${decisionFetchError.message}`;
+    renderSyncDiagnostics("意思決定ログ取得失敗", buildDatabaseErrorDiagnostics(decisionFetchError));
+    return;
+  }
 
   const remoteNotes = (remoteRows || []).map(fromRemoteNote);
+  const remoteDecisionLogs = (remoteDecisionRows || []).map(fromRemoteDecisionLog);
   const syncWarnings = [];
   if (remoteNotes.length && isOnlyUneditedSeedVault(state.notes)) {
     state.notes = remoteNotes.map((note) => ({ ...note, syncStatus: "synced" }));
@@ -1254,6 +1511,7 @@ async function syncNow() {
     dedupeResult.removed.slice(0, 8).forEach((item) => syncWarnings.push(`除去: ${item.title} / ${item.folder} / id=${item.id}`));
     if (dedupeResult.removed.length > 8) syncWarnings.push(`ほか ${dedupeResult.removed.length - 8} 件`);
   }
+  mergeRemoteDecisionLogs(remoteDecisionLogs);
 
   const rows = state.notes.map((note) => toRemoteNote(note, userId));
   const { error: upsertError } = await client.from("notes").upsert(rows, { onConflict: "id" });
@@ -1262,14 +1520,26 @@ async function syncNow() {
     renderSyncDiagnostics("保存失敗", buildDatabaseErrorDiagnostics(upsertError));
     return;
   }
+  const decisionRows = (state.decisionLogs || []).map((log) => toRemoteDecisionLog(log, userId));
+  if (decisionRows.length) {
+    const { error: decisionUpsertError } = await client.from("decision_logs").upsert(decisionRows, { onConflict: "id" });
+    if (decisionUpsertError) {
+      els.syncStatus.textContent = `意思決定ログ保存失敗: ${decisionUpsertError.message}`;
+      renderSyncDiagnostics("意思決定ログ保存失敗", buildDatabaseErrorDiagnostics(decisionUpsertError));
+      return;
+    }
+  }
   state.notes.forEach((note) => {
     note.syncStatus = "synced";
+  });
+  (state.decisionLogs || []).forEach((log) => {
+    log.syncStatus = "synced";
   });
   persist(true);
   render();
   els.syncStatus.textContent = `同期済み ${new Date().toLocaleTimeString("ja-JP")}`;
   renderSyncDiagnostics("同期成功", {
-    ok: [`同期ユーザー: ${userData.user.email || userData.user.id}`, `同期対象ノート: ${rows.length}件`],
+    ok: [`同期ユーザー: ${userData.user.email || userData.user.id}`, `同期対象ノート: ${rows.length}件`, `同期対象Decision Log: ${decisionRows.length}件`],
     warnings: syncWarnings,
     blockers: [],
   });
@@ -1396,6 +1666,32 @@ function mergeRemoteNotes(remoteNotes) {
   });
 }
 
+function mergeRemoteDecisionLogs(remoteLogs) {
+  state.decisionLogs = normalizeDecisionLogs(state.decisionLogs);
+  const byId = new Map(state.decisionLogs.map((log) => [log.id, log]));
+  remoteLogs.forEach((remote) => {
+    const local = byId.get(remote.id);
+    if (!local) {
+      state.decisionLogs.push({ ...remote, syncStatus: "synced" });
+      return;
+    }
+    if (remote.updatedAt > local.updatedAt) {
+      if (local.syncStatus === "local") {
+        const conflict = {
+          ...local,
+          id: crypto.randomUUID(),
+          decision: `${local.decision || "未入力の意思決定"} (競合ローカル ${formatDate(new Date().toISOString())})`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          syncStatus: "local",
+        };
+        state.decisionLogs.push(conflict);
+      }
+      Object.assign(local, remote, { syncStatus: "synced" });
+    }
+  });
+}
+
 function toRemoteNote(note, userId) {
   return {
     id: note.id,
@@ -1421,6 +1717,43 @@ function fromRemoteNote(row) {
     versions: Array.isArray(row.versions) ? row.versions : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  };
+}
+
+function toRemoteDecisionLog(log, userId) {
+  return {
+    id: log.id,
+    user_id: userId,
+    created_at: log.createdAt,
+    date: log.date,
+    category: log.category,
+    decision: log.decision,
+    alternatives: log.alternatives,
+    reason: log.reason,
+    result: log.result,
+    evaluation: log.evaluation,
+    tags: log.tags || [],
+    related_note_ids: log.relatedNoteIds || [],
+    updated_at: log.updatedAt,
+    deleted_at: log.deletedAt,
+  };
+}
+
+function fromRemoteDecisionLog(row) {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    date: row.date,
+    category: row.category,
+    decision: row.decision || "",
+    alternatives: row.alternatives || "",
+    reason: row.reason || "",
+    result: row.result || "",
+    evaluation: row.evaluation || "保留",
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    relatedNoteIds: Array.isArray(row.related_note_ids) ? row.related_note_ids : [],
     deletedAt: row.deleted_at,
   };
 }

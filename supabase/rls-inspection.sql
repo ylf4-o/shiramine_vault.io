@@ -7,7 +7,7 @@ select
   rowsecurity
 from pg_tables
 where schemaname = 'public'
-  and tablename in ('notes', 'tags', 'note_tags', 'links', 'note_versions')
+  and tablename in ('notes', 'tags', 'note_tags', 'links', 'note_versions', 'decision_logs')
 order by tablename;
 
 select
@@ -21,5 +21,5 @@ select
   with_check
 from pg_policies
 where schemaname = 'public'
-  and tablename in ('notes', 'tags', 'note_tags', 'links', 'note_versions')
+  and tablename in ('notes', 'tags', 'note_tags', 'links', 'note_versions', 'decision_logs')
 order by tablename, policyname;

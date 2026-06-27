@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Shiramine Vault</title>
-    <link rel="stylesheet" href="./styles.css?v=20260619-mobile-input" />
+    <link rel="stylesheet" href="./styles.css?v=20260627-decision-log" />
   </head>
   <body>
     <div class="app-shell">
@@ -40,6 +40,7 @@
 
         <section class="nav-section compact">
           <h2>抽出</h2>
+          <button id="decisionLogNavButton" class="nav-action">意思決定ログ</button>
           <button class="nav-action" data-filter="recent">最近更新</button>
           <button class="nav-action" data-filter="unorganized">未整理</button>
           <button class="nav-action" data-filter="kurosese">#黒瀬共有</button>
@@ -130,18 +131,78 @@
             </aside>
           </div>
         </section>
+
+        <section class="decision-panel" aria-label="意思決定ログ">
+          <div class="decision-layout">
+            <section class="decision-list-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow" id="decisionFilterLabel">すべて</p>
+                  <h2>意思決定ログ</h2>
+                </div>
+                <button id="newDecisionButton" class="primary-button">新規</button>
+              </div>
+              <div class="decision-filters">
+                <select id="decisionCategoryFilter" class="select-input" aria-label="カテゴリ絞り込み"></select>
+                <select id="decisionTagFilter" class="select-input" aria-label="タグ絞り込み"></select>
+              </div>
+              <div id="decisionLogList" class="note-list"></div>
+            </section>
+
+            <section class="decision-form-panel">
+              <div class="editor-toolbar">
+                <input id="decisionDateInput" class="select-input" type="date" aria-label="日付" />
+                <select id="decisionCategoryInput" class="select-input" aria-label="カテゴリ"></select>
+                <select id="decisionEvaluationInput" class="select-input" aria-label="評価"></select>
+                <button id="saveDecisionButton" class="primary-button">保存</button>
+                <button id="deleteDecisionButton" class="tool-button">削除</button>
+              </div>
+              <div class="decision-form">
+                <label>
+                  <span>決めたこと</span>
+                  <textarea id="decisionInput" rows="3"></textarea>
+                </label>
+                <label>
+                  <span>代替案</span>
+                  <textarea id="decisionAlternativesInput" rows="3"></textarea>
+                </label>
+                <label>
+                  <span>理由</span>
+                  <textarea id="decisionReasonInput" rows="4"></textarea>
+                </label>
+                <label>
+                  <span>結果</span>
+                  <textarea id="decisionResultInput" rows="3"></textarea>
+                </label>
+                <label>
+                  <span>タグ</span>
+                  <input id="decisionTagsInput" type="text" placeholder="例: 発信ネタ, 生活改善" />
+                </label>
+                <label>
+                  <span>関連ノート</span>
+                  <select id="decisionRelatedNotesInput" multiple></select>
+                </label>
+                <section>
+                  <h3>関連ノートリンク</h3>
+                  <div id="decisionRelatedLinks" class="link-list"></div>
+                </section>
+              </div>
+            </section>
+          </div>
+        </section>
       </main>
 
       <nav class="bottom-nav" aria-label="スマホナビゲーション">
         <button data-mobile-section="notes" class="active">ノート</button>
         <button data-mobile-section="search">検索</button>
         <button data-mobile-section="tags">タグ</button>
+        <button data-mobile-section="decisions">意思決定</button>
         <button data-mobile-section="settings">設定</button>
       </nav>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./vendor/encoding.min.js"></script>
-    <script src="./app.js?v=20260619-mobile-input"></script>
+    <script src="./app.js?v=20260627-decision-log"></script>
   </body>
 </html>
